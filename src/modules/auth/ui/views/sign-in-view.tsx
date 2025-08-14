@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle } from "@/components/ui/alert";
+import { FaGithub, FaGoogle } from "react-icons/fa";
 import { OctagonAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -46,9 +47,11 @@ export const SignInView = () => {
       {
         email: data.email,
         password: data.password,
+        callbackURL: "/",
       },
       {
         onSuccess: () => {
+          setPending(false);
           router.push("/");
         },
         onError: ({ error }) => {
@@ -59,6 +62,25 @@ export const SignInView = () => {
     setPending(false);
   };
 
+  const onSocial = (provider: "google" | "github") => {
+    setError(null);
+    setPending(true);
+    authClient.signIn.social(
+      {
+        provider: provider,
+        callbackURL: "/",
+      },
+      {
+        onSuccess: () => {
+          setPending(false);
+        },
+        onError: ({ error }) => {
+          setError(error.message);
+        },
+      }
+    );
+    setPending(false);
+  };
   return (
     <div className="flex flex-col gap-6">
       <Card className="overflow-hidden p-0">
@@ -127,14 +149,18 @@ export const SignInView = () => {
                     variant="outline"
                     className="w-full"
                     disabled={pending}
+                    onClick={() => onSocial("google")}
                   >
+                    <FaGoogle className="mr-2 h-4 w-4" />
                     Google
                   </Button>
                   <Button
                     variant="outline"
                     className="w-full"
                     disabled={pending}
+                    onClick={() => onSocial("github")}
                   >
+                    <FaGithub className="mr-2 h-4 w-4" />
                     Github
                   </Button>
                 </div>
