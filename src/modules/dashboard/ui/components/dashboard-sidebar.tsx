@@ -23,7 +23,7 @@ const fistSection = [
   {
     icon: VideoIcon,
     label: "Meetings",
-    href: "/meeting",
+    href: "/meetings",
   },
   {
     icon: BotIcon,
