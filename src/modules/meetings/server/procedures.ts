@@ -34,12 +34,12 @@ export const meetingsRouter = createTRPCRouter({
           }),
       },
     ]);
-    const expirationTime = Math.floor(Date.now() / 1000) + 3600; //1 hour
-    const issueAt = Math.floor(Date.now() / 1000) - 60; //1 minute
+    // const expirationTime = Math.floor(Date.now() / 1000) + 3600; //1 hour
+    // const issueAt = Math.floor(Date.now() / 1000) - 60; //1 minute
     const token = streamVideo.generateUserToken({
       user_id: ctx.auth.user.id,
-      exp: expirationTime,
-      validity_in_seconds: issueAt,
+      // exp: expirationTime,
+      // validity_in_seconds: issueAt,
     });
     return token;
   }),
