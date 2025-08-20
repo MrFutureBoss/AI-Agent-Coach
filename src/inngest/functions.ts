@@ -6,6 +6,9 @@ import { agents, meetings, user } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { createAgent, openai, TextMessage } from "@inngest/agent-kit";
 
+// Configure which AI provider to use
+const AI_PROVIDER = process.env.AI_PROVIDER || "openai"; // Options: "openai", "anthropic", "fallback"
+
 const summarizer = createAgent({
   name: "summarizer",
   system:
@@ -28,8 +31,78 @@ Example:
 #### Next Section
 - Feature X automatically does Y
 - Mention of integration with Z`.trim(),
-  model: openai({ model: "gpt-4o", apiKey: process.env.OPENAI_API_KEY }), //depence on the model you want to use
+  model: openai({ model: "gpt-3.5-turbo", apiKey: process.env.OPENAI_API_KEY }), //depence on the model you want to use
 });
+
+// Fallback summarization function when AI APIs are unavailable
+const createFallbackSummary = (transcript: any[]) => {
+  const speakers = [
+    ...new Set(transcript.map((item) => item.user?.name || "Unknown")),
+  ];
+  const totalMessages = transcript.length;
+  const duration =
+    transcript.length > 0
+      ? Math.round(
+          (transcript[transcript.length - 1].timestamp -
+            transcript[0].timestamp) /
+            1000 /
+            60
+        )
+      : 0;
+
+  const topics = transcript
+    .filter((item) => item.text && item.text.length > 10)
+    .slice(0, 5)
+    .map((item) => item.text.substring(0, 100) + "...");
+
+  return `### Overview
+This meeting involved ${
+    speakers.length
+  } participants and lasted approximately ${duration} minutes. The conversation included ${totalMessages} exchanges covering various topics and discussions.
+
+### Notes
+#### Meeting Participants
+- ${speakers.join(", ")}
+
+#### Key Discussion Points
+${topics.map((topic) => `- ${topic}`).join("\n")}
+
+#### Meeting Statistics
+- Total messages: ${totalMessages}
+- Duration: ~${duration} minutes
+- Participants: ${speakers.length}
+
+*Note: This is an automatically generated summary due to API limitations. For enhanced analysis, please check your AI provider API quota.*`;
+};
+
+// Enhanced summarization with multiple provider support
+const generateSummary = async (
+  transcript: any[],
+  provider: string = "openai"
+) => {
+  switch (provider) {
+    case "openai":
+      try {
+        const { output } = await summarizer.run(
+          "Summarize the following transcript:" + JSON.stringify(transcript)
+        );
+        return (output[0] as TextMessage).content as string;
+      } catch (error: any) {
+        console.warn("OpenAI API failed:", error?.message);
+        throw error;
+      }
+
+    case "anthropic":
+      // You can add Anthropic Claude support here if needed
+      // Requires @anthropic-ai/sdk package
+      console.warn("Anthropic provider not yet implemented");
+      throw new Error("Anthropic provider not implemented");
+
+    case "fallback":
+    default:
+      return createFallbackSummary(transcript);
+  }
+};
 
 export const meetingProcessing = inngest.createFunction(
   { id: "/meetings/processing" },
@@ -92,16 +165,25 @@ export const meetingProcessing = inngest.createFunction(
       });
     });
 
-    const { output } = await summarizer.run(
-      "Summarize the following transcript:" +
-        JSON.stringify(transcriptWithSpeakers)
-    );
+    let summary: string;
+
+    try {
+      // Try to use configured AI provider
+      summary = await generateSummary(transcriptWithSpeakers, AI_PROVIDER);
+    } catch (error: any) {
+      // If AI API fails, use fallback
+      console.warn(
+        "AI API failed, using fallback summarization:",
+        error?.message
+      );
+      summary = createFallbackSummary(transcriptWithSpeakers);
+    }
 
     await step.run("save-summary", async () => {
       await db
         .update(meetings)
         .set({
-          summary: (output[0] as TextMessage).content as string,
+          summary: summary,
           status: "completed",
         })
         .where(eq(meetings.id, event.data.meetingId));
