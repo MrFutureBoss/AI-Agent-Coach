@@ -35,16 +35,13 @@ Example:
 });
 
 // Fallback summarization function when AI APIs are unavailable
-const createFallbackSummary = (transcript: any[]) => {
-  const speakers = [
-    ...new Set(transcript.map((item) => item.user?.name || "Unknown")),
-  ];
+const createFallbackSummary = (transcript: StreamTranscriptItem[]) => {
+  const speakerIds = [...new Set(transcript.map((item) => item.speaker_id))];
   const totalMessages = transcript.length;
   const duration =
     transcript.length > 0
       ? Math.round(
-          (transcript[transcript.length - 1].timestamp -
-            transcript[0].timestamp) /
+          (transcript[transcript.length - 1].stop_ts - transcript[0].start_ts) /
             1000 /
             60
         )
@@ -57,12 +54,12 @@ const createFallbackSummary = (transcript: any[]) => {
 
   return `### Overview
 This meeting involved ${
-    speakers.length
+    speakerIds.length
   } participants and lasted approximately ${duration} minutes. The conversation included ${totalMessages} exchanges covering various topics and discussions.
 
 ### Notes
 #### Meeting Participants
-- ${speakers.join(", ")}
+- ${speakerIds.length} participants
 
 #### Key Discussion Points
 ${topics.map((topic) => `- ${topic}`).join("\n")}
@@ -70,14 +67,14 @@ ${topics.map((topic) => `- ${topic}`).join("\n")}
 #### Meeting Statistics
 - Total messages: ${totalMessages}
 - Duration: ~${duration} minutes
-- Participants: ${speakers.length}
+- Participants: ${speakerIds.length}
 
 *Note: This is an automatically generated summary due to API limitations. For enhanced analysis, please check your AI provider API quota.*`;
 };
 
 // Enhanced summarization with multiple provider support
 const generateSummary = async (
-  transcript: any[],
+  transcript: StreamTranscriptItem[],
   provider: string = "openai"
 ) => {
   switch (provider) {
@@ -87,8 +84,10 @@ const generateSummary = async (
           "Summarize the following transcript:" + JSON.stringify(transcript)
         );
         return (output[0] as TextMessage).content as string;
-      } catch (error: any) {
-        console.warn("OpenAI API failed:", error?.message);
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        console.warn("OpenAI API failed:", errorMessage);
         throw error;
       }
 
@@ -170,11 +169,13 @@ export const meetingProcessing = inngest.createFunction(
     try {
       // Try to use configured AI provider
       summary = await generateSummary(transcriptWithSpeakers, AI_PROVIDER);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If AI API fails, use fallback
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       console.warn(
         "AI API failed, using fallback summarization:",
-        error?.message
+        errorMessage
       );
       summary = createFallbackSummary(transcriptWithSpeakers);
     }

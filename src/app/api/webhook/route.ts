@@ -20,7 +20,7 @@ import { streamChat } from "@/lib/stream-chat";
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 // Fallback response when OpenAI API is unavailable
-const getFallbackResponse = (userQuestion: string, meetingSummary: string) => {
+const getFallbackResponse = (userQuestion: string) => {
   return `I apologize, but I'm currently experiencing technical difficulties with my AI processing capabilities. 
 
 However, I can see from the meeting summary that we discussed various topics. Based on your question "${userQuestion}", I'd recommend reviewing the meeting summary for relevant information.
@@ -112,15 +112,12 @@ export async function POST(req: NextRequest) {
       realTimeClient.updateSession({
         instructions: exsitingAgent.instructions,
       });
-    } catch (error: any) {
-      console.warn(
-        "Failed to connect OpenAI real-time client:",
-        error?.message
-      );
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      console.warn("Failed to connect OpenAI real-time client:", errorMessage);
       console.error("Real-time client error details:", {
-        error: error?.message,
-        code: error?.code,
-        status: error?.status,
+        error: errorMessage,
         meetingId: exsitMeeting.id,
         agentId: exsitingAgent.id,
       });
@@ -264,20 +261,17 @@ export async function POST(req: NextRequest) {
           throw new Error("No response content from OpenAI");
         }
         GPTResponseText = responseContent;
-      } catch (error: any) {
-        console.warn("OpenAI API failed in webhook:", error?.message);
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        console.warn("OpenAI API failed in webhook:", errorMessage);
 
         // Use fallback response when OpenAI fails
-        GPTResponseText = getFallbackResponse(
-          text,
-          existingMeeting.summary || "No summary available"
-        );
+        GPTResponseText = getFallbackResponse(text);
 
         // Log the error for debugging but continue with fallback
         console.error("OpenAI API error details:", {
-          error: error?.message,
-          code: error?.code,
-          status: error?.status,
+          error: errorMessage,
           meetingId: channelId,
           userId: userId,
         });
