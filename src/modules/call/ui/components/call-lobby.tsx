@@ -62,6 +62,7 @@ export const CallLobby = ({ onJoin }: Props) => {
             <p className="text-sm">Set up your call before joining</p>
           </div>
           <VideoPreview
+            className="md:w-[300px] md:h-[200px] sm:w-[200px] sm:h-[150px]"
             DisabledVideoPreview={
               hasBrowserPermission
                 ? DisableVideoPreview
